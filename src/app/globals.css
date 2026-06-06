@@ -1,26 +1,104 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #0a0f0d;
+  --color-secondary: var(--surface-raised);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-raised);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: #0a0f0d;
+  --color-destructive: var(--danger);
+  --color-border: var(--border);
+  --color-input: var(--surface-raised);
+  --color-ring: var(--accent);
+
+  --color-sidebar: var(--surface);
+  --color-sidebar-foreground: var(--text);
+  --color-sidebar-primary: var(--accent);
+  --color-sidebar-primary-foreground: #0a0f0d;
+  --color-sidebar-accent: var(--surface-raised);
+  --color-sidebar-accent-foreground: var(--text);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--accent);
+
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-purple: var(--purple);
+  --color-gold: var(--gold);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --bg:             #0a0f0d;
+  --surface:        #111a15;
+  --surface-raised: #182320;
+  --border:         #1e3028;
+  --accent:         #52B788;
+  --accent-hover:   #40916C;
+  --accent-muted:   #1B4332;
+  --text:           #e8f5e9;
+  --text-secondary: #8fbc9b;
+  --text-muted:     #4a7a58;
+  --warning:        #F4A261;
+  --danger:         #E76F51;
+  --success:        #52B788;
+  --purple:         #9B5DE5;
+  --gold:           #F9C74F;
+
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    @apply antialiased;
+  }
+  /* Monospace for all grow data numbers */
+  .mono {
+    font-family: var(--font-jetbrains-mono), monospace;
+    font-size: 0.9em;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
