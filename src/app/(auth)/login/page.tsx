@@ -42,7 +42,7 @@ export default function LoginPage() {
           <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-muted)' }}>
             <Leaf className="w-5 h-5" style={{ color: 'var(--accent)' }} />
           </div>
-          <span className="text-xl font-semibold" style={{ color: 'var(--text)' }}>WeedSmith</span>
+          <span className="text-xl font-semibold" style={{ color: 'var(--text)' }}>Grow OS</span>
         </div>
 
         {/* Card */}

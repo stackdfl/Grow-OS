@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, X, ChevronRight, ChevronLeft, FlaskConical } from 'lucide-react'
+import { Plus, X, ChevronRight, ChevronLeft, FlaskConical, Sparkles, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ export default function NewRecipePage() {
   const [description, setDesc]    = useState('')
   const [strainName, setStrain]   = useState('')
   const [breeder, setBreeder]     = useState('')
+  const [source, setSource]       = useState<'clone' | 'seed' | ''>('')
   const [medium, setMedium]       = useState('')
   const [environment, setEnv]     = useState('')
   const [difficulty, setDiff]     = useState('')
@@ -57,6 +58,64 @@ export default function NewRecipePage() {
   // Step 4: Publish
   const [tags, setTags]         = useState<string[]>([])
   const [isPublic, setIsPublic] = useState(false)
+
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError]     = useState('')
+
+  async function generateWithAI() {
+    setGenerating(true)
+    setGenError('')
+    try {
+      const res = await fetch('/api/recipes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          strain: strainName, breeder, type: null,
+          medium, lightType: null,
+          vegWeeks, flowerWeeks,
+          plantCount: null, containerSize: null,
+          notes: null,
+        }),
+      })
+      if (!res.ok) throw new Error('Generation failed')
+      const { recipe } = await res.json()
+
+      if (recipe.feeding_schedule?.length) {
+        setFeedRows(recipe.feeding_schedule.map((w: { week: number; stage: string; products?: Array<{ name: string; amount?: number; unit?: string }> }) => ({
+          week: w.week,
+          stage: w.stage,
+          notes: (w.products ?? []).map((p: { name: string; amount?: number; unit?: string }) =>
+            `${p.name}${p.amount ? ` ${p.amount}${p.unit ?? ''}` : ''}`
+          ).join(', '),
+        })))
+      }
+
+      if (recipe.watering_schedule?.length) {
+        setWaterRows(recipe.watering_schedule.map((w: { week: number; frequency_days?: number; volume_per_plant_ml?: number; ph_target?: number; ec_target?: number; notes?: string }) => ({
+          week: w.week,
+          freqDays: w.frequency_days ?? 2,
+          volume: w.volume_per_plant_ml ?? 0,
+          ph: w.ph_target ?? 6.0,
+          ec: w.ec_target ?? 0,
+          notes: w.notes ?? '',
+        })))
+      }
+
+      if (recipe.env_targets?.length) {
+        setEnvRows(recipe.env_targets.map((w: { week: number; stage?: string; temp_day_f?: number; temp_night_f?: number; rh_percent?: number; light_hours?: number }) => ({
+          week: w.week,
+          stage: w.stage ?? 'veg',
+          tempDay: w.temp_day_f ?? 78,
+          tempNight: w.temp_night_f ?? 68,
+          rh: w.rh_percent ?? 60,
+          lightHours: w.light_hours ?? 18,
+        })))
+      }
+    } catch {
+      setGenError('AI generation failed. You can fill the schedule manually.')
+    }
+    setGenerating(false)
+  }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
   function toggleTag(t: string) {
@@ -129,6 +188,7 @@ export default function NewRecipePage() {
         genetics: {
           strain: strainName.trim() || undefined,
           breeder: breeder.trim() || undefined,
+          source: source || undefined,
         },
         medium: { type: medium || undefined },
         difficulty: difficulty || null,
@@ -228,6 +288,23 @@ export default function NewRecipePage() {
         </div>
 
         <div className="space-y-1.5">
+          <label className="text-xs font-medium" style={labelStyle}>Propagation source</label>
+          <div className="flex gap-2">
+            {(['clone', 'seed', ''] as const).map(s => (
+              <button key={s} type="button" onClick={() => setSource(s)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium border transition-all capitalize"
+                style={{
+                  background: source === s ? 'var(--accent-muted)' : 'var(--surface-raised)',
+                  borderColor: source === s ? 'var(--accent)' : 'var(--border)',
+                  color: source === s ? 'var(--accent)' : 'var(--text-secondary)',
+                }}>
+                {s === '' ? 'Not specified' : s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="text-xs font-medium" style={labelStyle}>Growing medium</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MEDIUMS.map(m => (
@@ -298,10 +375,29 @@ export default function NewRecipePage() {
   function Step2() {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Schedule</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Week-by-week feeding, watering, and environment targets.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Schedule</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Week-by-week feeding, watering, and environment targets.</p>
+          </div>
+          <button
+            type="button"
+            onClick={generateWithAI}
+            disabled={generating}
+            className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all disabled:opacity-60"
+            style={{ background: 'var(--surface-raised)', borderColor: 'var(--accent)', color: 'var(--accent)' }}
+          >
+            {generating
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
+              : <><Sparkles className="w-3.5 h-3.5" /> Fill with AI</>}
+          </button>
         </div>
+
+        {genError && (
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(231,111,81,0.1)', color: 'var(--danger)' }}>
+            {genError}
+          </p>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <NumInput label="Veg weeks" value={vegWeeks} onChange={setVegWeeks} min={1} max={16} />

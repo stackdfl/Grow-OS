@@ -1,5 +1,8 @@
 import { addDays, subDays, format } from 'date-fns'
-import type { CalendarEventType, EventPriority } from '@/types/database'
+import type {
+  CalendarEventType, EventPriority,
+  RecipeFeedingWeek, RecipeWateringWeek, RecipeTrainingEvent, RecipeEnvWeek,
+} from '@/types/database'
 
 export interface GrowCalendarConfig {
   growId: string
@@ -248,5 +251,129 @@ export function generateCalendar(config: GrowCalendarConfig): CalendarEventInser
   // Sort by date
   events.sort((a, b) => a.event_date.localeCompare(b.event_date))
 
+  return events
+}
+
+// ─── Recipe → Calendar bridge ─────────────────────────────────────────────────
+
+export interface RecipeCalendarConfig {
+  growId: string
+  userId: string
+  recipe: {
+    veg_weeks?: number | null
+    flower_weeks?: number | null
+    feeding_schedule?: RecipeFeedingWeek[]
+    watering_schedule?: RecipeWateringWeek[]
+    training_schedule?: RecipeTrainingEvent[]
+    env_schedule?: RecipeEnvWeek[]
+  }
+  cloneDate?: Date
+  vegStartDate?: Date
+  flipDate?: Date
+}
+
+const RECIPE_EVENT_TYPES: CalendarEventType[] = [
+  'feed', 'water', 'environmental_change', 'lst', 'hst', 'defoliate', 'trellis', 'top',
+]
+
+export const RECIPE_CALENDAR_EVENT_TYPES = RECIPE_EVENT_TYPES
+
+function isFlowerStage(stage: string): boolean {
+  const s = stage.toLowerCase()
+  return s.includes('flower') || s.includes('bloom')
+}
+
+function mapTrainingType(et: string): CalendarEventType {
+  const s = et.toLowerCase()
+  if (s === 'lst' || s.includes('low stress')) return 'lst'
+  if (s === 'hst' || s.includes('supercrop') || s.includes('high stress')) return 'hst'
+  if (s.includes('defoliat')) return 'defoliate'
+  if (s.includes('trellis') || s === 'scrog') return 'trellis'
+  if (s === 'top' || s === 'topping') return 'top'
+  return 'observation'
+}
+
+export function generateRecipeCalendar(config: RecipeCalendarConfig): CalendarEventInsert[] {
+  const { growId, userId, recipe, cloneDate, vegStartDate, flipDate } = config
+  const vegAnchor = cloneDate ?? vegStartDate
+  const vegWeeks = recipe.veg_weeks ?? 4
+  const events: CalendarEventInsert[] = []
+
+  // Week+stage → actual Date
+  function weekDate(week: number, stage: string): Date | null {
+    if (isFlowerStage(stage)) {
+      if (!flipDate) return null
+      return addDays(flipDate, (week - 1) * 7)
+    }
+    if (!vegAnchor) return null
+    return addDays(vegAnchor, (week - 1) * 7)
+  }
+
+  // Week number without stage (uses veg_weeks boundary)
+  function weekDateByNumber(week: number): Date | null {
+    if (week <= vegWeeks && vegAnchor) {
+      return addDays(vegAnchor, (week - 1) * 7)
+    }
+    if (flipDate) {
+      return addDays(flipDate, (week - vegWeeks - 1) * 7)
+    }
+    return null
+  }
+
+  // ── Feeding ───────────────────────────────────────────────────────────────
+  for (const w of recipe.feeding_schedule ?? []) {
+    const d = weekDate(w.week, w.stage)
+    if (!d) continue
+    const productSummary = w.products
+      .map(p => `${p.name}${p.amount > 0 ? ` ${p.amount}${p.unit}` : ''}`)
+      .join(', ')
+    events.push(event(growId, userId, d, 'feed',
+      `Feed — Wk ${w.week} (${w.stage})`, 'medium',
+      productSummary || undefined))
+  }
+
+  // ── Watering ──────────────────────────────────────────────────────────────
+  for (const w of recipe.watering_schedule ?? []) {
+    const anchor = weekDateByNumber(w.week)
+    if (!anchor) continue
+    const desc = [
+      w.frequency_days ? `Every ${w.frequency_days} days` : null,
+      w.volume_per_plant_ml ? `${w.volume_per_plant_ml}mL/plant` : null,
+      w.ph_target ? `pH ${w.ph_target}` : null,
+      w.ec_target ? `EC ${w.ec_target}` : null,
+      w.notes ?? null,
+    ].filter(Boolean).join(' · ')
+    // Generate water events across the week based on frequency
+    const freq = Math.max(1, w.frequency_days ?? 2)
+    for (let offset = 0; offset < 7; offset += freq) {
+      events.push(event(growId, userId, addDays(anchor, offset), 'water',
+        `Water — Wk ${w.week}`, 'low', desc || undefined))
+    }
+  }
+
+  // ── Environment targets ───────────────────────────────────────────────────
+  for (const w of recipe.env_schedule ?? []) {
+    const d = weekDate(w.week, w.stage)
+    if (!d) continue
+    const desc = [
+      w.temp_day_f ? `Day ${w.temp_day_f}°F` : null,
+      w.temp_night_f ? `Night ${w.temp_night_f}°F` : null,
+      w.rh_percent ? `RH ${w.rh_percent}%` : null,
+      w.ppfd ? `PPFD ${w.ppfd}` : null,
+      w.light_hours ? `${w.light_hours}h light` : null,
+    ].filter(Boolean).join(' · ')
+    events.push(event(growId, userId, d, 'environmental_change',
+      `Env targets — Wk ${w.week} (${w.stage})`, 'low', desc || undefined))
+  }
+
+  // ── Training events ───────────────────────────────────────────────────────
+  for (const t of recipe.training_schedule ?? []) {
+    if (!flipDate) continue
+    const d = addDays(flipDate, t.day_from_flip)
+    events.push(event(growId, userId, d, mapTrainingType(t.event_type),
+      t.event_type.replace(/_/g, ' '), 'medium', t.description))
+  }
+
+  events.sort((a, b) => a.event_date.localeCompare(b.event_date))
   return events
 }

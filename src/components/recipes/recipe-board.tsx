@@ -390,7 +390,18 @@ function RecipeRow({
         </div>
 
         <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          <span>@{recipe.author?.username ?? 'unknown'}</span>
+          {recipe.author?.username ? (
+            <Link
+              href={`/growers/${recipe.author.username}`}
+              onClick={e => e.stopPropagation()}
+              className="hover:underline"
+              style={{ color: 'var(--accent)' }}
+            >
+              @{recipe.author.username}
+            </Link>
+          ) : (
+            <span>@unknown</span>
+          )}
           <span>·</span>
           <span>{recipe.downloads} saves</span>
         </div>

@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Sprout, GitBranch, FlaskConical, Bot } from 'lucide-react'
+import { LayoutDashboard, Sprout, Cpu, FlaskConical, Bot } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { href: '/grows', icon: Sprout, label: 'Grows' },
-  { href: '/pipeline', icon: GitBranch, label: 'Pipeline' },
-  { href: '/recipes', icon: FlaskConical, label: 'Recipes' },
-  { href: '/coach', icon: Bot, label: 'Coach' },
+  { href: '/dashboard',  icon: LayoutDashboard, label: 'Home' },
+  { href: '/grows',      icon: Sprout,          label: 'Grows' },
+  { href: '/controller', icon: Cpu,             label: 'Controller' },
+  { href: '/recipes',    icon: FlaskConical,    label: 'Recipes' },
+  { href: '/coach',      icon: Bot,             label: 'Coach' },
 ]
 
 export function BottomNav() {

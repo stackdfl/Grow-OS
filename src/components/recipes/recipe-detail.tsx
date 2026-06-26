@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
+import { generateRecipeCalendar, RECIPE_CALENDAR_EVENT_TYPES } from '@/lib/calendar-engine/generate'
 import type { Recipe, RecipeReview, Grow } from '@/types/database'
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -79,6 +80,9 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
   const [applyGrowId, setApplyGrowId] = useState('')
   const [applying, setApplying]       = useState(false)
   const [forking, setForking]         = useState(false)
+  const [showForkModal, setShowForkModal] = useState(false)
+  const [forkRecipePlants, setForkRecipePlants] = useState(4)
+  const [forkYourPlants, setForkYourPlants]     = useState(4)
   const [reviewRating, setReviewRating] = useState(myReview?.rating ?? 0)
   const [reviewText, setReviewText]   = useState(myReview?.review_text ?? '')
   const [submittingReview, setSubmittingReview] = useState(false)
@@ -89,25 +93,78 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
   async function handleApply() {
     if (!applyGrowId) return
     setApplying(true)
+
+    // Update grow + bump downloads in parallel
+    const [, growRes] = await Promise.all([
+      supabase.from('recipes').update({ downloads: recipe.downloads + 1 } as never).eq('id', recipe.id),
+      supabase.from('grows').select('id, clone_date, veg_start_date, flip_date').eq('id', applyGrowId).single(),
+    ])
     await supabase
       .from('grows')
       .update({ recipe_id: recipe.id, is_following_recipe: true } as never)
       .eq('id', applyGrowId)
 
-    // Bump downloads
-    await supabase
-      .from('recipes')
-      .update({ downloads: recipe.downloads + 1 } as never)
-      .eq('id', recipe.id)
+    // Generate recipe-driven calendar events if grow has anchor dates
+    const grow = growRes.data as { id: string; clone_date: string | null; veg_start_date: string | null; flip_date: string | null } | null
+    if (grow) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Delete stale auto-generated recipe events
+        await supabase
+          .from('calendar_events')
+          .delete()
+          .eq('grow_id', applyGrowId)
+          .eq('is_auto_generated', true)
+          .in('event_type', RECIPE_CALENDAR_EVENT_TYPES)
+
+        // Generate new events from recipe schedule
+        const newEvents = generateRecipeCalendar({
+          growId: applyGrowId,
+          userId: user.id,
+          recipe: {
+            veg_weeks: recipe.veg_weeks,
+            flower_weeks: recipe.flower_weeks,
+            feeding_schedule: recipe.feeding_schedule,
+            watering_schedule: recipe.watering_schedule,
+            training_schedule: recipe.training_schedule,
+            env_schedule: recipe.env_schedule,
+          },
+          cloneDate: grow.clone_date ? new Date(grow.clone_date) : undefined,
+          vegStartDate: grow.veg_start_date ? new Date(grow.veg_start_date) : undefined,
+          flipDate: grow.flip_date ? new Date(grow.flip_date) : undefined,
+        })
+
+        if (newEvents.length > 0) {
+          await supabase.from('calendar_events').insert(newEvents as never)
+        }
+      }
+    }
 
     setApplying(false)
     router.push(`/grows/${applyGrowId}`)
   }
 
-  async function handleFork() {
+  async function handleFork(scaleFactor = 1) {
     setForking(true)
+    setShowForkModal(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setForking(false); return }
+
+    // Auto-increment version: 1.0 → 1.1, 1.2 → 1.3, etc.
+    const currentVersion = recipe.version ?? '1.0'
+    const [major, minor] = currentVersion.split('.').map(Number)
+    const nextVersion = `${major ?? 1}.${(minor ?? 0) + 1}`
+
+    // Scale nutrient amounts proportionally (batch amounts scale with plant count)
+    const scale = (n: number) => Math.round(n * scaleFactor * 100) / 100
+    const scaledFeeding = (recipe.feeding_schedule ?? []).map(w => ({
+      ...w,
+      products: w.products.map(p => ({ ...p, amount: p.amount > 0 ? scale(p.amount) : p.amount })),
+    }))
+    const scaledAmendments = (recipe.amendment_schedule ?? []).map(w => ({
+      ...w,
+      products: w.products.map(p => ({ ...p, amount: p.amount > 0 ? scale(p.amount) : p.amount })),
+    }))
 
     const { data, error } = await supabase
       .from('recipes')
@@ -122,18 +179,18 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
         veg_weeks: recipe.veg_weeks,
         flower_weeks: recipe.flower_weeks,
         total_weeks: recipe.total_weeks,
-        feeding_schedule: recipe.feeding_schedule,
+        feeding_schedule: scaledFeeding,
         env_schedule: recipe.env_schedule,
         watering_schedule: recipe.watering_schedule,
         training_schedule: recipe.training_schedule,
-        amendment_schedule: recipe.amendment_schedule,
+        amendment_schedule: scaledAmendments,
         harvest_data: recipe.harvest_data,
         key_success_factors: recipe.key_success_factors,
         common_failure_points: recipe.common_failure_points,
         estimated_yield_oz_per_plant: recipe.estimated_yield_oz_per_plant,
         tags: recipe.tags,
         is_public: false,
-        version: '1.0',
+        version: nextVersion,
       } as never)
       .select('id')
       .single()
@@ -490,9 +547,13 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
             <Badge key={t} label={t} color="var(--text-muted)" />
           ))}
           {recipe.author && (
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            <Link
+              href={`/growers/${recipe.author.username}`}
+              className="text-xs hover:underline"
+              style={{ color: 'var(--accent)' }}
+            >
               by @{recipe.author.username}
-            </span>
+            </Link>
           )}
         </div>
 
@@ -509,7 +570,7 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
             </Link>
           )}
           <button
-            onClick={handleFork}
+            onClick={() => setShowForkModal(true)}
             disabled={forking}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50"
             style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
@@ -661,6 +722,95 @@ export function RecipeDetail({ recipe, reviews, activeGrows, currentUserId, myRe
           </div>
         </div>
       </div>
+
+      {/* Fork scale modal */}
+      {showForkModal && (() => {
+        const scaleFactor = forkRecipePlants > 0 ? forkYourPlants / forkRecipePlants : 1
+        const pct = Math.round((scaleFactor - 1) * 100)
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.6)' }}
+            onClick={e => { if (e.target === e.currentTarget) setShowForkModal(false) }}
+          >
+            <div
+              className="rounded-2xl border p-6 w-full max-w-sm space-y-5"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            >
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>
+                  Scale this fork
+                </h2>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  Nutrient amounts scale proportionally to your plant count.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    Original recipe plants
+                  </label>
+                  <input
+                    type="number" min={1} max={99} value={forkRecipePlants}
+                    onChange={e => setForkRecipePlants(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono text-center"
+                    style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    Your plant count
+                  </label>
+                  <input
+                    type="number" min={1} max={99} value={forkYourPlants}
+                    onChange={e => setForkYourPlants(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono text-center"
+                    style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  />
+                </div>
+              </div>
+
+              {/* Scale preview */}
+              <div
+                className="rounded-lg px-4 py-3 text-center"
+                style={{ background: 'var(--surface-raised)' }}
+              >
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scale factor </span>
+                <span className="text-base font-mono font-semibold" style={{ color: scaleFactor === 1 ? 'var(--text)' : scaleFactor > 1 ? 'var(--accent)' : 'var(--warning)' }}>
+                  ×{scaleFactor.toFixed(2)}
+                </span>
+                {pct !== 0 && (
+                  <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+                    ({pct > 0 ? '+' : ''}{pct}% amounts)
+                  </span>
+                )}
+                {scaleFactor === 1 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>No scaling — fork is a direct copy</p>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowForkModal(false)}
+                  className="flex-1 py-2 rounded-lg text-sm border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleFork(scaleFactor)}
+                  disabled={forking}
+                  className="flex-1 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{ background: 'var(--accent)', color: '#0a0f0d' }}
+                >
+                  {forking ? 'Forking…' : 'Fork & scale'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

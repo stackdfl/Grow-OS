@@ -5,18 +5,21 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Leaf, LayoutDashboard, Sprout, BookOpen,
-  FlaskConical, CalendarDays, Zap, Bot, Settings, LogOut, GitBranch
+  FlaskConical, CalendarDays, Zap, Bot, Settings, LogOut, GitBranch, Dna, Calculator, Cpu
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/grows', icon: Sprout, label: 'Grows' },
-  { href: '/pipeline', icon: GitBranch, label: 'Pipeline' },
-  { href: '/journal', icon: BookOpen, label: 'Journal' },
-  { href: '/calendar', icon: CalendarDays, label: 'Calendar' },
-  { href: '/recipes', icon: FlaskConical, label: 'Recipes' },
-  { href: '/equipment', icon: Zap, label: 'Equipment' },
-  { href: '/coach', icon: Bot, label: 'AI Coach' },
+  { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/grows',       icon: Sprout,          label: 'Grows' },
+  { href: '/controller',  icon: Cpu,             label: 'Controller' },
+  { href: '/journal',     icon: BookOpen,        label: 'Journal' },
+  { href: '/calendar',    icon: CalendarDays,    label: 'Calendar' },
+  { href: '/recipes',     icon: FlaskConical,    label: 'Recipes' },
+  { href: '/strains',     icon: Dna,             label: 'Strains' },
+  { href: '/pipeline',    icon: GitBranch,       label: 'Pipeline' },
+  { href: '/tools',       icon: Calculator,      label: 'Tools' },
+  { href: '/equipment',   icon: Zap,             label: 'Equipment' },
+  { href: '/coach',       icon: Bot,             label: 'AI Coach' },
 ]
 
 export function Sidebar() {
@@ -39,7 +42,7 @@ export function Sidebar() {
         <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
           <Leaf className="w-4 h-4" style={{ color: 'var(--accent)' }} />
         </div>
-        <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>WeedSmith</span>
+        <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Grow OS</span>
       </div>
 
       {/* Nav */}
@@ -66,7 +69,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="px-2 py-3 border-t space-y-0.5" style={{ borderColor: 'var(--border)' }}>
         <Link
-          href="/profile"
+          href="/settings"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{ color: 'var(--text-secondary)' }}
         >

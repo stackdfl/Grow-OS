@@ -5,11 +5,11 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { format, parseISO } from 'date-fns'
-import { ChevronLeft, Thermometer, Plus, X } from 'lucide-react'
+import { ChevronLeft, Thermometer, Plus, X, Cpu, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { EnvReading, Grow } from '@/types/database'
+import type { EnvReading, Grow, Tent } from '@/types/database'
 
 export default function GrowEnvironmentPage() {
   const { id: growId } = useParams<{ id: string }>()
@@ -17,6 +17,7 @@ export default function GrowEnvironmentPage() {
 
   const [grow, setGrow]       = useState<Pick<Grow, 'id' | 'name'> | null>(null)
   const [readings, setReadings] = useState<EnvReading[]>([])
+  const [tent, setTent]         = useState<Pick<Tent, 'id' | 'name' | 'is_online'> | null>(null)
   const [loading, setLoading]   = useState(true)
 
   // Form
@@ -34,13 +35,15 @@ export default function GrowEnvironmentPage() {
   useEffect(() => { load() }, [growId])
 
   async function load() {
-    const [growRes, readRes] = await Promise.all([
+    const [growRes, readRes, tentRes] = await Promise.all([
       supabase.from('grows').select('id, name').eq('id', growId).single(),
       supabase.from('env_readings').select('*').eq('grow_id', growId)
         .order('reading_time', { ascending: false }).limit(100),
+      supabase.from('tents').select('id, name, is_online').eq('grow_id', growId).maybeSingle(),
     ])
     setGrow(growRes.data as Pick<Grow, 'id' | 'name'> | null)
     setReadings((readRes.data ?? []) as EnvReading[])
+    setTent(tentRes.data as Pick<Tent, 'id' | 'name' | 'is_online'> | null)
     setLoading(false)
   }
 
@@ -118,6 +121,26 @@ export default function GrowEnvironmentPage() {
           </Button>
         )}
       </div>
+
+      {/* Tent controller link */}
+      {tent && (
+        <Link
+          href={`/controller/${tent.id}`}
+          className="flex items-center justify-between p-3 rounded-xl border mb-4"
+          style={{ background: tent.is_online ? 'var(--accent-muted)' : 'var(--surface)', borderColor: tent.is_online ? 'var(--accent)' : 'var(--border)' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <Cpu className="w-4 h-4 shrink-0" style={{ color: tent.is_online ? 'var(--accent)' : 'var(--text-muted)' }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{tent.name}</p>
+              <p className="text-xs" style={{ color: tent.is_online ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {tent.is_online ? 'Live — view controller' : 'Offline — view controller'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
+        </Link>
+      )}
 
       {adding && (
         <div className="rounded-xl border p-4 mb-5 space-y-4" style={{ borderColor: 'var(--accent)', background: 'var(--surface)' }}>

@@ -4,9 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { differenceInDays, parseISO, startOfDay, format, addDays } from 'date-fns'
 import {
   ChevronLeft, Droplets, Thermometer, Wind, CalendarDays,
-  Sprout, FlaskConical, BookOpen, Zap, MoreHorizontal, Leaf
+  Sprout, FlaskConical, BookOpen, Zap, Leaf, GlassWater, Pencil
 } from 'lucide-react'
 import type { Grow, Genetics, EquipmentProfile, CalendarEvent, WateringLog, EnvReading } from '@/types/database'
+import { SyncRecipeButton } from '@/components/grows/sync-recipe-button'
 
 const STAGE_LABELS: Record<string, string> = {
   seedling: 'Seedling', clone: 'Clone', veg: 'Veg', flower: 'Flower',
@@ -110,6 +111,20 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
             <span className="px-2 py-0.5 rounded-md text-xs font-medium shrink-0" style={{ background: `${stageColor}20`, color: stageColor }}>
               {STAGE_LABELS[grow.status]}
             </span>
+            <Link href={`/grows/${id}/edit`}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border transition-colors"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+              <Pencil className="w-3 h-3" /> Edit
+            </Link>
+            {grow.recipe_id && (
+              <SyncRecipeButton
+                growId={grow.id}
+                recipeId={grow.recipe_id}
+                cloneDate={grow.clone_date}
+                vegStartDate={grow.veg_start_date}
+                flipDate={grow.flip_date}
+              />
+            )}
           </div>
           {grow.genetics && (
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -256,12 +271,13 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
       )}
 
       {/* Nav tabs */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {[
           { href: `/grows/${id}/journal`, icon: BookOpen, label: 'Journal' },
           { href: `/grows/${id}/calendar`, icon: CalendarDays, label: 'Calendar' },
+          { href: `/grows/${id}/watering`, icon: GlassWater, label: 'Watering' },
           { href: `/grows/${id}/feeding`, icon: Droplets, label: 'Feeding' },
-          { href: `/grows/${id}/environment`, icon: Thermometer, label: 'Environment' },
+          { href: `/grows/${id}/environment`, icon: Thermometer, label: 'Env' },
           { href: `/grows/${id}/harvest`, icon: FlaskConical, label: 'Harvest' },
         ].map(({ href, icon: Icon, label }) => (
           <Link key={href} href={href}>

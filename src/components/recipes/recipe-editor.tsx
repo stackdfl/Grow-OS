@@ -56,9 +56,13 @@ export function RecipeEditor({ recipe }: { recipe: Recipe }) {
   const [description, setDesc]    = useState(recipe.description ?? '')
   const [strainName, setStrain]   = useState(recipe.genetics?.strain ?? '')
   const [breeder, setBreeder]     = useState(recipe.genetics?.breeder ?? '')
+  const [source, setSource]       = useState<'clone' | 'seed' | ''>(recipe.genetics?.source ?? '')
   const [medium, setMedium]       = useState(recipe.medium?.type ?? '')
   const [environment, setEnv]     = useState('')
   const [difficulty, setDiff]     = useState(recipe.difficulty ?? '')
+  const [dryTempF, setDryTempF]   = useState(recipe.harvest_data?.dry_temp_f?.toString() ?? '')
+  const [dryRhPct, setDryRhPct]   = useState(recipe.harvest_data?.dry_rh_percent?.toString() ?? '')
+  const [cureDays, setCureDays]   = useState(recipe.harvest_data?.cure_duration_days?.toString() ?? '')
   const [vegWeeks, setVegWeeks]   = useState(recipe.veg_weeks ?? 4)
   const [flowerWeeks, setFlowerWeeks] = useState(recipe.flower_weeks ?? 9)
   const [yieldEst, setYieldEst]   = useState(recipe.estimated_yield_oz_per_plant?.toString() ?? '')
@@ -114,7 +118,13 @@ export function RecipeEditor({ recipe }: { recipe: Recipe }) {
       .update({
         title: title.trim(),
         description: description.trim() || null,
-        genetics: { strain: strainName.trim() || undefined, breeder: breeder.trim() || undefined },
+        genetics: { strain: strainName.trim() || undefined, breeder: breeder.trim() || undefined, source: source || undefined },
+        harvest_data: {
+          ...(recipe.harvest_data ?? {}),
+          dry_temp_f: dryTempF ? parseFloat(dryTempF) : undefined,
+          dry_rh_percent: dryRhPct ? parseFloat(dryRhPct) : undefined,
+          cure_duration_days: cureDays ? parseInt(cureDays) : undefined,
+        },
         medium: { type: medium || undefined },
         difficulty: difficulty || null,
         veg_weeks: vegWeeks,
@@ -192,6 +202,22 @@ export function RecipeEditor({ recipe }: { recipe: Recipe }) {
             <div className="space-y-1.5">
               <label className={labelCls} style={labelStyle}>Breeder</label>
               <input value={breeder} onChange={e => setBreeder(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={inputStyle} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className={labelCls} style={labelStyle}>Propagation source</label>
+            <div className="flex gap-2">
+              {(['clone', 'seed', ''] as const).map(s => (
+                <button key={s} type="button" onClick={() => setSource(s)}
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium border transition-all capitalize"
+                  style={{
+                    background: source === s ? 'var(--accent-muted)' : 'var(--surface-raised)',
+                    borderColor: source === s ? 'var(--accent)' : 'var(--border)',
+                    color: source === s ? 'var(--accent)' : 'var(--text-secondary)',
+                  }}>
+                  {s === '' ? 'Not specified' : s}
+                </button>
+              ))}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -347,6 +373,25 @@ export function RecipeEditor({ recipe }: { recipe: Recipe }) {
               </div>
             </div>
           ))}
+        </section>
+
+        {/* Drying & Cure */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Drying & Cure</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className={labelCls} style={labelStyle}>Dry temp (°F)</label>
+              <input type="number" step="1" placeholder="60" value={dryTempF} onChange={e => setDryTempF(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono" style={inputStyle} />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls} style={labelStyle}>Dry RH (%)</label>
+              <input type="number" step="1" placeholder="60" value={dryRhPct} onChange={e => setDryRhPct(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono" style={inputStyle} />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls} style={labelStyle}>Cure (days)</label>
+              <input type="number" step="1" placeholder="30" value={cureDays} onChange={e => setCureDays(e.target.value)} className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono" style={inputStyle} />
+            </div>
+          </div>
         </section>
 
         {/* Tags + publish */}

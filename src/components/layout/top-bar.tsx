@@ -6,21 +6,26 @@ import { Leaf, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/grows': 'Grows',
-  '/journal': 'Journal',
-  '/calendar': 'Calendar',
-  '/recipes': 'Recipes',
-  '/equipment': 'Equipment',
-  '/coach': 'AI Coach',
-  '/profile': 'Profile',
+  '/dashboard':  'Dashboard',
+  '/grows':      'Grows',
+  '/controller': 'Controller',
+  '/journal':    'Journal',
+  '/calendar':   'Calendar',
+  '/recipes':    'Recipes',
+  '/strains':    'Strains',
+  '/pipeline':   'Pipeline',
+  '/tools':      'Tools',
+  '/equipment':  'Equipment',
+  '/coach':      'AI Coach',
+  '/settings':   'Settings',
+  '/community':  'Community',
 }
 
 export function TopBar() {
   const pathname = usePathname()
 
   const base = '/' + (pathname.split('/')[1] ?? '')
-  const title = PAGE_TITLES[base] ?? 'WeedSmith'
+  const title = PAGE_TITLES[base] ?? 'Grow OS'
 
   return (
     <header

@@ -6,7 +6,7 @@ export type GeneticsType = 'indica' | 'sativa' | 'hybrid' | 'auto'
 export type GrowStatus = 'planned' | 'seedling' | 'clone' | 'veg' | 'flower' | 'flush' | 'harvest' | 'drying' | 'curing' | 'complete' | 'failed'
 export type CalendarEventType = 'water' | 'feed' | 'top_dress' | 'transplant' | 'top' | 'lst' | 'hst' | 'defoliate' | 'trellis' | 'flip' | 'flush_start' | 'harvest' | 'cure_start' | 'clone_take' | 'clone_transplant' | 'observation' | 'environmental_change' | 'custom'
 export type EventPriority = 'low' | 'medium' | 'high' | 'critical'
-export type EnvSource = 'manual' | 'ac_infinity' | 'aroya' | 'pulse'
+export type EnvSource = 'manual' | 'ac_infinity' | 'aroya' | 'pulse' | 'grow_os'
 export type RecipeDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert'
 
 // ============================================================
@@ -21,6 +21,13 @@ export interface Profile {
   bio: string | null
   avatar_url: string | null
   equipment_profile: Record<string, unknown>
+  created_at: string
+}
+
+export interface Follow {
+  id: string
+  follower_id: string
+  following_id: string
   created_at: string
 }
 
@@ -41,10 +48,6 @@ export interface EquipmentProfile {
   medium_type: string | null
   pot_size_gal: number | null
   max_plants: number | null
-  controller_type: string | null
-  ac_infinity_device_id: string | null
-  ac_infinity_email: string | null
-  ac_infinity_token: string | null
   notes: string | null
   is_default: boolean
   created_at: string
@@ -234,7 +237,8 @@ export interface CalendarEvent {
 // ============================================================
 export interface EnvReading {
   id: string
-  grow_id: string
+  grow_id: string | null
+  tent_id: string | null
   user_id: string
   reading_time: string
   temp_f: number | null
@@ -248,6 +252,46 @@ export interface EnvReading {
   ec: number | null
   source: EnvSource
   raw_data: Record<string, unknown>
+}
+
+// ============================================================
+// Grow OS — Tents, Device States, Schedules
+// ============================================================
+export interface Tent {
+  id: string
+  user_id: string
+  grow_id: string | null
+  name: string
+  api_key: string
+  is_online: boolean
+  last_seen: string | null
+  created_at: string
+  // joined
+  grow?: Pick<Grow, 'id' | 'name' | 'status' | 'flip_date'> | null
+}
+
+export interface DeviceState {
+  id: string
+  tent_id: string
+  fan_speed: number
+  light_level: number
+  humidifier_on: boolean
+  clip_fan_1_on: boolean
+  clip_fan_2_on: boolean
+  auto_mode: boolean
+  updated_at: string
+}
+
+export interface TentSchedule {
+  id: string
+  tent_id: string
+  lights_on: string
+  lights_off: string
+  sunrise_minutes: number
+  sunset_minutes: number
+  flower_week: number
+  vpd_targets: Record<string, { min: number; max: number }>
+  updated_at: string
 }
 
 // ============================================================
@@ -296,6 +340,7 @@ export interface RecipeGenetics {
   strain?: string
   breeder?: string
   cut_id?: string
+  source?: 'clone' | 'seed'
   is_clone_only?: boolean
   phenotype_notes?: string
 }
@@ -313,6 +358,10 @@ export interface RecipeEquipmentRequirements {
   light_type?: string
   min_ppfd?: number
   container_size_gal?: number
+  fans?: string
+  dehumidifier?: boolean
+  ac?: boolean
+  controller?: string
 }
 
 export interface RecipeFeedingWeek {
@@ -361,6 +410,9 @@ export interface RecipeHarvestData {
   trichome_target?: string
   final_yield_oz?: number
   thc_pct?: number
+  dry_temp_f?: number
+  dry_rh_percent?: number
+  cure_duration_days?: number
 }
 
 // ============================================================
@@ -434,6 +486,9 @@ export interface Database {
       recipe_reviews: { Row: RecipeReview; Insert: Omit<RecipeReview, 'id' | 'created_at' | 'profile'>; Update: Partial<Omit<RecipeReview, 'id' | 'recipe_id' | 'user_id' | 'created_at' | 'profile'>> }
       recipe_saves: { Row: RecipeSave; Insert: Omit<RecipeSave, 'id' | 'saved_at' | 'recipe'>; Update: never }
       harvest_reports: { Row: HarvestReport; Insert: Omit<HarvestReport, 'id' | 'created_at'>; Update: Partial<Omit<HarvestReport, 'id' | 'grow_id' | 'user_id' | 'created_at'>> }
+      tents: { Row: Tent; Insert: Omit<Tent, 'id' | 'created_at' | 'grow'>; Update: Partial<Omit<Tent, 'id' | 'user_id' | 'created_at' | 'grow'>> }
+      device_states: { Row: DeviceState; Insert: Omit<DeviceState, 'id' | 'updated_at'>; Update: Partial<Omit<DeviceState, 'id' | 'tent_id'>> }
+      tent_schedules: { Row: TentSchedule; Insert: Omit<TentSchedule, 'id' | 'updated_at'>; Update: Partial<Omit<TentSchedule, 'id' | 'tent_id'>> }
     }
   }
 }

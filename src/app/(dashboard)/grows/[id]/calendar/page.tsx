@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { format, parseISO, startOfDay } from 'date-fns'
-import { ChevronLeft, Check, SkipForward, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronLeft, Check, SkipForward, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import type { CalendarEvent } from '@/types/database'
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -34,6 +34,15 @@ export default function GrowCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('pending')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+  // Add event form
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newDate, setNewDate] = useState(format(startOfDay(new Date()), 'yyyy-MM-dd'))
+  const [newType, setNewType] = useState('custom')
+  const [newPriority, setNewPriority] = useState('medium')
+  const [newDesc, setNewDesc] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
 
   useEffect(() => {
     loadEvents()
@@ -75,6 +84,37 @@ export default function GrowCalendarPage() {
     setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, skipped: true } : e))
   }
 
+  async function addEvent() {
+    if (!newTitle.trim()) return
+    setAddingSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAddingSaving(false); return }
+
+    const { data } = await supabase
+      .from('calendar_events')
+      .insert([{
+        grow_id: growId,
+        user_id: user.id,
+        event_date: newDate,
+        event_type: newType,
+        title: newTitle.trim(),
+        description: newDesc.trim() || null,
+        priority: newPriority,
+        completed: false,
+        skipped: false,
+        source: 'manual',
+      } as never])
+      .select()
+      .single()
+
+    if (data) {
+      setEvents(prev => [...prev, data as CalendarEvent].sort((a, b) => a.event_date.localeCompare(b.event_date)))
+      setExpandedGroups(g => new Set([...g, newDate]))
+      setNewTitle(''); setNewDesc(''); setShowAddForm(false)
+    }
+    setAddingSaving(false)
+  }
+
   const today = format(startOfDay(new Date()), 'yyyy-MM-dd')
 
   const filtered = events.filter((e) => {
@@ -110,13 +150,64 @@ export default function GrowCalendarPage() {
         <Link href={`/grows/${growId}`} style={{ color: 'var(--text-muted)' }}>
           <ChevronLeft className="w-5 h-5" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Grow Calendar</h1>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {pendingCount} pending · {completedCount} completed
           </p>
         </div>
+        <button
+          onClick={() => setShowAddForm(v => !v)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
+          style={{ background: showAddForm ? 'var(--accent-muted)' : 'transparent', borderColor: showAddForm ? 'var(--accent)' : 'var(--border)', color: showAddForm ? 'var(--accent)' : 'var(--text-secondary)' }}
+        >
+          {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {showAddForm ? 'Cancel' : 'Add event'}
+        </button>
       </div>
+
+      {/* Add event form */}
+      {showAddForm && (
+        <div className="rounded-xl border p-4 mb-5 space-y-3" style={{ borderColor: 'var(--accent)', background: 'var(--surface)' }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>New Event</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Title *</label>
+              <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Defoliation, trellis check…"
+                className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
+                style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Date</label>
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-sm border outline-none font-mono"
+                style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+            </div>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {[['medium','Medium'],['high','High'],['critical','Critical'],['low','Low']].map(([v,l]) => (
+              <button key={v} type="button" onClick={() => setNewPriority(v)}
+                className="px-3 py-1 rounded-lg text-xs border capitalize transition-all"
+                style={{ background: newPriority === v ? 'var(--accent-muted)' : 'var(--surface-raised)', borderColor: newPriority === v ? 'var(--accent)' : 'var(--border)', color: newPriority === v ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Notes (optional)</label>
+            <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Additional details…"
+              className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
+              style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+          <div className="flex justify-end">
+            <button onClick={addEvent} disabled={addingSaving || !newTitle.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
+              style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
+              {addingSaving ? 'Adding…' : 'Add Event'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5">

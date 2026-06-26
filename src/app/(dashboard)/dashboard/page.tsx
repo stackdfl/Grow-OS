@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDistanceToNow, differenceInDays, parseISO, addWeeks, isBefore, isAfter, startOfDay } from 'date-fns'
-import { Sprout, Plus, Droplets, AlertTriangle, CheckSquare, ChevronRight, Zap } from 'lucide-react'
-import type { Grow, CalendarEvent, WateringLog } from '@/types/database'
+import { Sprout, Plus, Droplets, AlertTriangle, CheckSquare, ChevronRight, Zap, Download, Cpu, Circle } from 'lucide-react'
+import type { Grow, CalendarEvent, WateringLog, Recipe, Tent } from '@/types/database'
 
 const STAGE_COLORS: Record<string, string> = {
   seedling: 'var(--accent)',
@@ -94,6 +94,41 @@ export default async function DashboardPage() {
     }
   }
 
+  // Fetch following feed — recent public recipes from people user follows
+  const { data: followingFeedRaw } = await supabase
+    .from('recipes')
+    .select('id, title, genetics, medium, difficulty, rating_avg, downloads, created_at, author:profiles!author_id(id, username, display_name)')
+    .eq('is_public', true)
+    .in('author_id', (
+      await supabase.from('follows').select('following_id').eq('follower_id', user.id)
+        .then(r => (r.data ?? []).map((f: { following_id: string }) => f.following_id))
+    ))
+    .order('created_at', { ascending: false })
+    .limit(6)
+  const followingFeed = (followingFeedRaw ?? []) as unknown as (Recipe & { author: { id: string; username: string; display_name: string | null } | null })[]
+
+  // Fetch tents with latest reading
+  const { data: tentsRaw } = await supabase
+    .from('tents')
+    .select('id, name, is_online, last_seen')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+  const tents = (tentsRaw ?? []) as Pick<Tent, 'id' | 'name' | 'is_online' | 'last_seen'>[]
+
+  const tentLatestReadings: Record<string, { temp_f: number | null; rh_percent: number | null; vpd_kpa: number | null }> = {}
+  if (tents.length > 0) {
+    for (const tent of tents) {
+      const { data } = await supabase
+        .from('env_readings')
+        .select('temp_f, rh_percent, vpd_kpa')
+        .eq('tent_id', tent.id)
+        .order('reading_time', { ascending: false })
+        .limit(1)
+        .single()
+      if (data) tentLatestReadings[tent.id] = data as { temp_f: number | null; rh_percent: number | null; vpd_kpa: number | null }
+    }
+  }
+
   const todayEvents = upcomingEvents.filter((e) => e.event_date === todayStr)
   const upcomingOnly = upcomingEvents.filter((e) => e.event_date > todayStr)
 
@@ -133,6 +168,52 @@ export default async function DashboardPage() {
           </button>
         </Link>
       </div>
+
+      {/* Tents widget */}
+      {tents.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Controller</h2>
+            <Link href="/controller" className="text-xs" style={{ color: 'var(--accent)' }}>View all</Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {tents.map((tent) => {
+              const online = tent.last_seen
+                ? Date.now() - new Date(tent.last_seen).getTime() < 90 * 1000
+                : false
+              const reading = tentLatestReadings[tent.id]
+              return (
+                <Link
+                  key={tent.id}
+                  href={`/controller/${tent.id}`}
+                  className="flex items-center gap-3 p-3 rounded-xl border transition-colors"
+                  style={{ background: 'var(--surface)', borderColor: online ? 'rgba(82,183,136,0.4)' : 'var(--border)' }}
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: online ? 'var(--accent-muted)' : 'var(--surface-raised)' }}>
+                    <Cpu className="w-3.5 h-3.5" style={{ color: online ? 'var(--accent)' : 'var(--text-muted)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{tent.name}</p>
+                      <Circle className="w-1.5 h-1.5 shrink-0" fill={online ? 'var(--accent)' : 'var(--text-muted)'} style={{ color: online ? 'var(--accent)' : 'var(--text-muted)' }} />
+                    </div>
+                    {reading ? (
+                      <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {reading.temp_f?.toFixed(1)}°F · {reading.rh_percent?.toFixed(0)}% · {reading.vpd_kpa?.toFixed(2)} kPa
+                      </p>
+                    ) : (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {online ? 'Reading…' : 'No data yet'}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Alerts */}
       {alerts.length > 0 && (
@@ -221,6 +302,42 @@ export default async function DashboardPage() {
                 <span className="text-sm flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>{event.title}</span>
                 <PriorityDot priority={event.priority} />
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Following feed */}
+      {followingFeed.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>From growers you follow</span>
+            <Link href="/recipes" className="text-xs" style={{ color: 'var(--accent)' }}>Browse all</Link>
+          </div>
+          <div className="space-y-2">
+            {followingFeed.map(r => (
+              <Link key={r.id} href={`/recipes/${r.id}`}>
+                <div className="flex items-center gap-3 py-1 hover:opacity-80 transition-opacity">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate" style={{ color: 'var(--text)' }}>{r.title}</p>
+                    <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      <Link
+                        href={`/growers/${r.author?.username}`}
+                        onClick={e => e.stopPropagation()}
+                        className="hover:underline"
+                        style={{ color: 'var(--accent)' }}
+                      >
+                        @{r.author?.username}
+                      </Link>
+                      {r.genetics?.strain && <span>· {r.genetics.strain}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    <Download className="w-3 h-3" />
+                    <span className="text-xs font-mono">{r.downloads}</span>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         </div>

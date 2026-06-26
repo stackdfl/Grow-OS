@@ -15,8 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "WeedSmith — Cannabis Cultivation OS",
-  description: "Track every grow. Convert proven grows into shareable recipes. Sync your tent automatically.",
+  title: "Grow OS — Cannabis Cultivation Platform",
+  description: "Run your entire grow operation from seed to jar. Track grows, automate your tent, and let your data get smarter every cycle.",
 }
 
 export default function RootLayout({
