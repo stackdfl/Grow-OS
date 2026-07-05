@@ -321,8 +321,7 @@ export default function TentDashboardPage() {
       </div>
 
       {/* History chart */}
-      {readings.length > 1 && (
-        <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
           {/* Header row */}
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Environment History</p>
@@ -445,8 +444,12 @@ export default function TentDashboardPage() {
               )}
             </LineChart>
           </ResponsiveContainer>
+          {readings.length === 0 && (
+            <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+              No readings yet — {`readings state: ${readings.length}`}
+            </p>
+          )}
         </div>
-      )}
 
       {/* Auto mode toggle */}
       <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
