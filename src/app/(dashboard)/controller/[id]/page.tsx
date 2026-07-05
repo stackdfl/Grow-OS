@@ -5,12 +5,19 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, format } from 'date-fns'
 import {
   Cpu, Circle, Settings, RefreshCw, Wind, Sun,
-  Droplets, Fan, ChevronRight, Copy, Check
+  Droplets, Fan, ChevronRight, Copy, Check, Monitor
 } from 'lucide-react'
 import type { Tent, DeviceState, TentSchedule, EnvReading } from '@/types/database'
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  Tooltip, ReferenceArea, CartesianGrid,
+} from 'recharts'
+
+type Period = '2h' | '12h' | '24h'
+const PERIOD_LIMITS: Record<Period, number> = { '2h': 120, '12h': 720, '24h': 1440 }
 
 const OFFLINE_MS = 90 * 1000
 
@@ -80,6 +87,8 @@ export default function TentDashboardPage() {
   const [devices, setDevices] = useState<DeviceState | null>(null)
   const [schedule, setSchedule] = useState<TentSchedule | null>(null)
   const [latestReading, setLatestReading] = useState<EnvReading | null>(null)
+  const [readings, setReadings] = useState<EnvReading[]>([])
+  const [period, setPeriod] = useState<Period>('2h')
   const [lastSeen, setLastSeen] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -88,17 +97,19 @@ export default function TentDashboardPage() {
   const devicesRef = useRef<DeviceState | null>(null)
   devicesRef.current = devices
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p: Period = period) => {
     const [
       { data: tentData },
       { data: devicesData },
       { data: scheduleData },
       { data: readingData },
+      { data: historyData },
     ] = await Promise.all([
       supabase.from('tents').select('*, grow:grows(id, name, status, flip_date)').eq('id', id).single(),
       supabase.from('device_states').select('*').eq('tent_id', id).single(),
       supabase.from('tent_schedules').select('*').eq('tent_id', id).single(),
       supabase.from('env_readings').select('*').eq('tent_id', id).order('reading_time', { ascending: false }).limit(1).single(),
+      supabase.from('env_readings').select('reading_time,temp_f,rh_percent,vpd_kpa').eq('tent_id', id).order('reading_time', { ascending: true }).limit(PERIOD_LIMITS[p]),
     ])
 
     if (!tentData) { router.push('/controller'); return }
@@ -107,9 +118,10 @@ export default function TentDashboardPage() {
     setDevices(devicesData as DeviceState)
     setSchedule(scheduleData as TentSchedule)
     setLatestReading(readingData as EnvReading | null)
+    setReadings((historyData ?? []) as EnvReading[])
     setLastSeen((tentData as TentFull).last_seen)
     setLoading(false)
-  }, [id])
+  }, [id, period])
 
   useEffect(() => { load() }, [load])
 
@@ -123,9 +135,11 @@ export default function TentDashboardPage() {
         table: 'env_readings',
         filter: `tent_id=eq.${id}`,
       }, (payload) => {
-        setLatestReading(payload.new as EnvReading)
+        const r = payload.new as EnvReading
+        setLatestReading(r)
         setLastSeen(new Date().toISOString())
         setTent(prev => prev ? { ...prev, last_seen: new Date().toISOString(), is_online: true } : prev)
+        setReadings(prev => [...prev.slice(-PERIOD_LIMITS[period] + 1), r])
       })
       .subscribe()
 
@@ -194,14 +208,21 @@ export default function TentDashboardPage() {
             </span>
           </div>
         </div>
-        <Link href={`/controller/${id}/schedule`}>
-          <button
-            className="p-2 rounded-lg"
-            style={{ background: 'var(--surface-raised)', color: 'var(--text-secondary)' }}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <a href={`/display/${id}`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
+            <Monitor className="w-4 h-4" /> Display
+          </a>
+          <Link href={`/controller/${id}/schedule`}>
+            <button
+              className="p-2 rounded-lg"
+              style={{ background: 'var(--surface-raised)', color: 'var(--text-secondary)' }}
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </Link>
+        </div>
       </div>
 
       {/* Never-connected setup card */}
@@ -297,6 +318,105 @@ export default function TentDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* History chart */}
+      {readings.length > 1 && (
+        <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>History</p>
+            <div className="flex items-center gap-1">
+              {(['2h', '12h', '24h'] as Period[]).map(p => (
+                <button
+                  key={p}
+                  onClick={() => { setPeriod(p); load(p) }}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                  style={{
+                    background: period === p ? 'var(--accent-muted)' : 'transparent',
+                    color: period === p ? 'var(--accent)' : 'var(--text-muted)',
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 mb-3">
+            {[
+              { label: 'Temp °F', color: 'var(--gold)' },
+              { label: 'RH %', color: 'var(--purple)' },
+              { label: 'VPD kPa', color: 'var(--accent)' },
+            ].map(({ label, color }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <div className="w-3 h-0.5 rounded-full" style={{ background: color }} />
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={readings} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis
+                dataKey="reading_time"
+                tickFormatter={(v) => format(new Date(v), 'HH:mm')}
+                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                yAxisId="temp"
+                domain={['auto', 'auto']}
+                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+              />
+              <YAxis
+                yAxisId="rh"
+                orientation="right"
+                domain={[0, 100]}
+                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                width={32}
+              />
+              <YAxis yAxisId="vpd" hide domain={[0, 2.5]} />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--surface-raised)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  color: 'var(--text)',
+                }}
+                labelFormatter={(v) => format(new Date(v), 'HH:mm')}
+                formatter={(value, name) => {
+                  const v = Number(value)
+                  if (name === 'temp_f') return [`${v.toFixed(1)}°F`, 'Temp']
+                  if (name === 'rh_percent') return [`${v.toFixed(0)}%`, 'RH']
+                  if (name === 'vpd_kpa') return [`${v.toFixed(2)} kPa`, 'VPD']
+                  return [`${v}`, String(name)]
+                }}
+              />
+              {vpdTarget && (
+                <ReferenceArea
+                  yAxisId="vpd"
+                  y1={vpdTarget.min}
+                  y2={vpdTarget.max}
+                  fill="var(--accent)"
+                  fillOpacity={0.08}
+                />
+              )}
+              <Line yAxisId="temp" type="monotone" dataKey="temp_f" stroke="var(--gold)" strokeWidth={1.5} dot={false} />
+              <Line yAxisId="rh" type="monotone" dataKey="rh_percent" stroke="var(--purple)" strokeWidth={1.5} dot={false} />
+              <Line yAxisId="vpd" type="monotone" dataKey="vpd_kpa" stroke="var(--accent)" strokeWidth={1.5} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Auto mode toggle */}
       <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
