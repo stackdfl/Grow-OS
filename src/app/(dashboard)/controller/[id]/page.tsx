@@ -89,6 +89,7 @@ export default function TentDashboardPage() {
   const [latestReading, setLatestReading] = useState<EnvReading | null>(null)
   const [readings, setReadings] = useState<EnvReading[]>([])
   const [period, setPeriod] = useState<Period>('2h')
+  const [visibleLines, setVisibleLines] = useState({ temp_f: true, rh_percent: true, vpd_kpa: true })
   const [lastSeen, setLastSeen] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -322,8 +323,9 @@ export default function TentDashboardPage() {
       {/* History chart */}
       {readings.length > 1 && (
         <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          {/* Header row */}
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>History</p>
+            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Environment History</p>
             <div className="flex items-center gap-1">
               {(['2h', '12h', '24h'] as Period[]).map(p => (
                 <button
@@ -341,22 +343,35 @@ export default function TentDashboardPage() {
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex items-center gap-4 mb-3">
-            {[
-              { label: 'Temp °F', color: 'var(--gold)' },
-              { label: 'RH %', color: 'var(--purple)' },
-              { label: 'VPD kPa', color: 'var(--accent)' },
-            ].map(({ label, color }) => (
-              <div key={label} className="flex items-center gap-1.5">
-                <div className="w-3 h-0.5 rounded-full" style={{ background: color }} />
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{label}</span>
-              </div>
-            ))}
+          {/* Toggleable legend chips */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            {([
+              { key: 'temp_f' as const, label: 'Temp °F', color: 'var(--gold)' },
+              { key: 'rh_percent' as const, label: 'RH %', color: 'var(--purple)' },
+              { key: 'vpd_kpa' as const, label: 'VPD kPa', color: 'var(--accent)' },
+            ]).map(({ key, label, color }) => {
+              const active = visibleLines[key]
+              return (
+                <button
+                  key={key}
+                  onClick={() => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }))}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all"
+                  style={{
+                    borderColor: active ? color : 'var(--border)',
+                    background: active ? `color-mix(in srgb, ${color} 12%, transparent)` : 'transparent',
+                    color: active ? color : 'var(--text-muted)',
+                    opacity: active ? 1 : 0.5,
+                  }}
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ background: active ? color : 'var(--text-muted)' }} />
+                  {label}
+                </button>
+              )
+            })}
           </div>
 
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={readings} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={readings} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis
                 dataKey="reading_time"
@@ -366,24 +381,30 @@ export default function TentDashboardPage() {
                 axisLine={false}
                 interval="preserveStartEnd"
               />
+              {/* Left axis — Temp °F */}
               <YAxis
                 yAxisId="temp"
                 domain={['auto', 'auto']}
-                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tick={{ fontSize: 10, fill: 'var(--gold)' }}
                 tickLine={false}
                 axisLine={false}
                 width={36}
+                hide={!visibleLines.temp_f}
               />
+              {/* Right axis — RH % */}
               <YAxis
                 yAxisId="rh"
                 orientation="right"
                 domain={[0, 100]}
-                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                tick={{ fontSize: 10, fill: 'var(--purple)' }}
                 tickLine={false}
                 axisLine={false}
                 width={32}
+                hide={!visibleLines.rh_percent}
               />
+              {/* Hidden axis — VPD */}
               <YAxis yAxisId="vpd" hide domain={[0, 2.5]} />
+
               <Tooltip
                 contentStyle={{
                   background: 'var(--surface-raised)',
@@ -392,7 +413,7 @@ export default function TentDashboardPage() {
                   fontSize: '11px',
                   color: 'var(--text)',
                 }}
-                labelFormatter={(v) => format(new Date(v), 'HH:mm')}
+                labelFormatter={(v) => format(new Date(v), 'MMM d, HH:mm')}
                 formatter={(value, name) => {
                   const v = Number(value)
                   if (name === 'temp_f') return [`${v.toFixed(1)}°F`, 'Temp']
@@ -401,7 +422,9 @@ export default function TentDashboardPage() {
                   return [`${v}`, String(name)]
                 }}
               />
-              {vpdTarget && (
+
+              {/* VPD target band */}
+              {vpdTarget && visibleLines.vpd_kpa && (
                 <ReferenceArea
                   yAxisId="vpd"
                   y1={vpdTarget.min}
@@ -410,9 +433,16 @@ export default function TentDashboardPage() {
                   fillOpacity={0.08}
                 />
               )}
-              <Line yAxisId="temp" type="monotone" dataKey="temp_f" stroke="var(--gold)" strokeWidth={1.5} dot={false} />
-              <Line yAxisId="rh" type="monotone" dataKey="rh_percent" stroke="var(--purple)" strokeWidth={1.5} dot={false} />
-              <Line yAxisId="vpd" type="monotone" dataKey="vpd_kpa" stroke="var(--accent)" strokeWidth={1.5} dot={false} />
+
+              {visibleLines.temp_f && (
+                <Line yAxisId="temp" type="monotone" dataKey="temp_f" stroke="var(--gold)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+              )}
+              {visibleLines.rh_percent && (
+                <Line yAxisId="rh" type="monotone" dataKey="rh_percent" stroke="var(--purple)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+              )}
+              {visibleLines.vpd_kpa && (
+                <Line yAxisId="vpd" type="monotone" dataKey="vpd_kpa" stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
