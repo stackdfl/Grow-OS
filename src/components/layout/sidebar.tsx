@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Leaf, LayoutDashboard, Sprout, BookOpen,
-  FlaskConical, CalendarDays, Zap, Bot, Settings, LogOut, GitBranch, Dna, Calculator, Cpu
+  FlaskConical, CalendarDays, Zap, Bot, Settings, LogOut, GitBranch, Dna, Calculator, Cpu, Trophy, Users
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -14,9 +14,11 @@ const NAV_ITEMS = [
   { href: '/controller',  icon: Cpu,             label: 'Controller' },
   { href: '/journal',     icon: BookOpen,        label: 'Journal' },
   { href: '/calendar',    icon: CalendarDays,    label: 'Calendar' },
+  { href: '/pipeline',    icon: GitBranch,       label: 'Pipeline' },
+  { href: '/stats',       icon: Trophy,          label: 'Stats' },
+  { href: '/canopy',      icon: Users,           label: 'Canopy' },
   { href: '/recipes',     icon: FlaskConical,    label: 'Recipes' },
   { href: '/strains',     icon: Dna,             label: 'Strains' },
-  { href: '/pipeline',    icon: GitBranch,       label: 'Pipeline' },
   { href: '/tools',       icon: Calculator,      label: 'Tools' },
   { href: '/equipment',   icon: Zap,             label: 'Equipment' },
   { href: '/coach',       icon: Bot,             label: 'AI Coach' },

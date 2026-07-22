@@ -91,6 +91,7 @@ export default function GrowFeedingPage() {
       setVolume('')
       setNotes('')
       setAdding(false)
+      fetch('/api/calibration/compute', { method: 'POST' }).catch(() => {})
     }
     setSaving(false)
   }

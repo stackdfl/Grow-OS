@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
   Leaf, Plus, Search, X, ChevronRight, Dna,
-  FlaskConical, Eye, EyeOff, Star
+  FlaskConical, Eye, EyeOff, Star, Trophy
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { Button } from '@/components/ui/button'
@@ -118,9 +119,16 @@ export default function StrainsPage() {
             {strains.length} strain{strains.length !== 1 ? 's' : ''} in your library
           </p>
         </div>
-        <Button onClick={() => setAdding(true)} style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
-          <Plus className="w-4 h-4 mr-1.5" /> Add Strain
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/strains/leaderboard"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+            <Trophy className="w-4 h-4" style={{ color: 'var(--gold)' }} /> Leaderboard
+          </Link>
+          <Button onClick={() => setAdding(true)} style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
+            <Plus className="w-4 h-4 mr-1.5" /> Add Strain
+          </Button>
+        </div>
       </div>
 
       {/* Add form */}
@@ -255,8 +263,8 @@ export default function StrainsPage() {
       {/* Strain list */}
       <div className="space-y-2">
         {filtered.map(strain => (
-          <div key={strain.id}
-            className="flex items-center gap-4 px-4 py-3 rounded-xl border"
+          <Link key={strain.id} href={`/strains/${strain.id}`}
+            className="flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors hover:border-[--accent]"
             style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
 
             <div
@@ -297,7 +305,7 @@ export default function StrainsPage() {
                 </p>
               )}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

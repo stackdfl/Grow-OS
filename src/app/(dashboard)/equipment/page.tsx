@@ -6,13 +6,19 @@ import { Plus, Edit2, Trash2, Star, X, Check, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { EquipmentProfile } from '@/types/database'
+import type { EquipmentProfile, TentRole } from '@/types/database'
 
 const LIGHT_TYPES = ['LED', 'HPS', 'CMH/LEC', 'T5/HO', 'CFL', 'Other']
 const MEDIUM_TYPES = ['Living Soil', 'Coco Coir', 'Pro-Mix / Peat', 'Rockwool', 'DWC Hydro', 'Aeroponics', 'Other']
+const ROLES: { value: TentRole; label: string; color: string }[] = [
+  { value: 'veg',    label: 'Veg',    color: '#52B788' },
+  { value: 'flower', label: 'Flower', color: '#9B5DE5' },
+  { value: 'both',   label: 'Veg + Flower', color: '#6b8f7b' },
+]
 
 type FormState = {
   name: string
+  role: TentRole
   tent_width_ft: string
   tent_length_ft: string
   tent_height_ft: string
@@ -27,7 +33,7 @@ type FormState = {
 }
 
 const EMPTY_FORM: FormState = {
-  name: '', tent_width_ft: '', tent_length_ft: '', tent_height_ft: '',
+  name: '', role: 'both', tent_width_ft: '', tent_length_ft: '', tent_height_ft: '',
   light_type: '', light_wattage: '', light_brand: '',
   medium_type: '', pot_size_gal: '', max_plants: '',
   notes: '', is_default: false,
@@ -36,6 +42,7 @@ const EMPTY_FORM: FormState = {
 function profileToForm(p: EquipmentProfile): FormState {
   return {
     name:           p.name,
+    role:           p.role ?? 'both',
     tent_width_ft:  p.tent_width_ft?.toString() ?? '',
     tent_length_ft: p.tent_length_ft?.toString() ?? '',
     tent_height_ft: p.tent_height_ft?.toString() ?? '',
@@ -87,6 +94,7 @@ export default function EquipmentPage() {
     const payload = {
       user_id:        user.id,
       name:           form.name.trim(),
+      role:           form.role,
       tent_width_ft:  form.tent_width_ft  ? parseFloat(form.tent_width_ft)  : null,
       tent_length_ft: form.tent_length_ft ? parseFloat(form.tent_length_ft) : null,
       tent_height_ft: form.tent_height_ft ? parseFloat(form.tent_height_ft) : null,
@@ -248,8 +256,17 @@ function ProfileCard({
     <div className="p-4">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold" style={{ color: 'var(--text)' }}>{p.name}</span>
+            {(() => {
+              const r = ROLES.find(x => x.value === (p.role ?? 'both')) ?? ROLES[2]
+              return (
+                <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                  style={{ background: `${r.color}22`, color: r.color }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: r.color }} /> {r.label}
+                </span>
+              )
+            })()}
             {p.is_default && (
               <span
                 className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
@@ -350,6 +367,31 @@ function ProfileForm({
           autoFocus
           style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label style={{ color: 'var(--text-secondary)' }}>Tent role</Label>
+        <div className="flex gap-2">
+          {ROLES.map(r => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => onChange('role', r.value)}
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all flex items-center justify-center gap-1.5"
+              style={{
+                background:  form.role === r.value ? `${r.color}22` : 'transparent',
+                borderColor: form.role === r.value ? r.color : 'var(--border)',
+                color:       form.role === r.value ? r.color : 'var(--text-muted)',
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: r.color }} />
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          Used by the pipeline to route plants from veg → flower
+        </p>
       </div>
 
       <div>

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import type { Grow, Genetics } from '@/types/database'
+import type { Grow, Genetics, EquipmentProfile } from '@/types/database'
 
 const STATUSES = [
   { value: 'clone',    label: 'Clone' },
@@ -34,6 +34,7 @@ export default function EditGrowPage() {
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [genetics, setGenetics] = useState<Genetics[]>([])
+  const [equipment, setEquipment] = useState<EquipmentProfile[]>([])
 
   // Fields
   const [name, setName]                 = useState('')
@@ -41,6 +42,8 @@ export default function EditGrowPage() {
   const [geneticsId, setGeneticsId]     = useState('')
   const [plantCount, setPlantCount]     = useState('1')
   const [spaceLabel, setSpaceLabel]     = useState('')
+  const [vegTentId, setVegTentId]       = useState('')
+  const [flowerTentId, setFlowerTentId] = useState('')
   const [cloneDate, setCloneDate]       = useState('')
   const [vegStart, setVegStart]         = useState('')
   const [flipDate, setFlipDate]         = useState('')
@@ -55,11 +58,12 @@ export default function EditGrowPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    const [growRes, genRes] = await Promise.all([
+    const [growRes, genRes, equipRes] = await Promise.all([
       supabase.from('grows').select('*').eq('id', growId).eq('user_id', user.id).single(),
       supabase.from('genetics').select('id, strain_name, breeder')
         .or(`user_id.eq.${user.id},is_public.eq.true`)
         .order('strain_name'),
+      supabase.from('equipment_profiles').select('*').eq('user_id', user.id).order('created_at'),
     ])
 
     const g = growRes.data as Grow | null
@@ -70,6 +74,8 @@ export default function EditGrowPage() {
     setGeneticsId(g.genetics_id ?? '')
     setPlantCount(String(g.plant_count))
     setSpaceLabel(g.space_label ?? '')
+    setVegTentId(g.veg_tent_id ?? '')
+    setFlowerTentId(g.equipment_profile_id ?? '')
     setCloneDate(g.clone_date ?? '')
     setVegStart(g.veg_start_date ?? '')
     setFlipDate(g.flip_date ?? '')
@@ -79,6 +85,7 @@ export default function EditGrowPage() {
     setNotes(g.notes ?? '')
 
     setGenetics((genRes.data ?? []) as Genetics[])
+    setEquipment((equipRes.data ?? []) as EquipmentProfile[])
     setLoading(false)
   }
 
@@ -94,6 +101,8 @@ export default function EditGrowPage() {
         genetics_id: geneticsId || null,
         plant_count: parseInt(plantCount) || 1,
         space_label: spaceLabel.trim() || null,
+        veg_tent_id: vegTentId || null,
+        equipment_profile_id: flowerTentId || null,
         clone_date: cloneDate || null,
         veg_start_date: vegStart || null,
         flip_date: flipDate || null,
@@ -177,6 +186,36 @@ export default function EditGrowPage() {
               <Input value={spaceLabel} onChange={e => setSpaceLabel(e.target.value)} placeholder="4×4 Tent A" style={inputStyle} />
             </div>
           </div>
+
+          {/* Tent routing */}
+          {equipment.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1" style={labelStyle}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#52B788' }} /> Veg tent
+                </Label>
+                <select value={vegTentId} onChange={e => setVegTentId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={inputStyle}>
+                  <option value="">— None —</option>
+                  {equipment.filter(t => (t.role ?? 'both') !== 'flower').map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1" style={labelStyle}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#9B5DE5' }} /> Flower tent
+                </Label>
+                <select value={flowerTentId} onChange={e => setFlowerTentId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none" style={inputStyle}>
+                  <option value="">— None —</option>
+                  {equipment.filter(t => (t.role ?? 'both') !== 'veg').map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Dates */}
           <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>

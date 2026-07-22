@@ -17,7 +17,7 @@ import {
 } from 'recharts'
 
 type Period = '2h' | '12h' | '24h'
-const PERIOD_LIMITS: Record<Period, number> = { '2h': 120, '12h': 720, '24h': 1440 }
+const PERIOD_HOURS: Record<Period, number> = { '2h': 2, '12h': 12, '24h': 24 }
 
 const OFFLINE_MS = 90 * 1000
 
@@ -97,6 +97,8 @@ export default function TentDashboardPage() {
 
   const devicesRef = useRef<DeviceState | null>(null)
   devicesRef.current = devices
+  const periodRef = useRef<Period>('2h')
+  periodRef.current = period
 
   const load = useCallback(async (p: Period = period) => {
     const [
@@ -110,7 +112,7 @@ export default function TentDashboardPage() {
       supabase.from('device_states').select('*').eq('tent_id', id).single(),
       supabase.from('tent_schedules').select('*').eq('tent_id', id).single(),
       supabase.from('env_readings').select('*').eq('tent_id', id).order('reading_time', { ascending: false }).limit(1).single(),
-      supabase.from('env_readings').select('reading_time,temp_f,rh_percent,vpd_kpa').eq('tent_id', id).order('reading_time', { ascending: true }).limit(PERIOD_LIMITS[p]),
+      supabase.from('env_readings').select('reading_time,temp_f,rh_percent,vpd_kpa').eq('tent_id', id).gte('reading_time', new Date(Date.now() - PERIOD_HOURS[p] * 60 * 60 * 1000).toISOString()).order('reading_time', { ascending: true }),
     ])
 
     if (!tentData) { router.push('/controller'); return }
@@ -140,7 +142,10 @@ export default function TentDashboardPage() {
         setLatestReading(r)
         setLastSeen(new Date().toISOString())
         setTent(prev => prev ? { ...prev, last_seen: new Date().toISOString(), is_online: true } : prev)
-        setReadings(prev => [...prev.slice(-PERIOD_LIMITS[period] + 1), r])
+        setReadings(prev => {
+          const cutoff = new Date(Date.now() - PERIOD_HOURS[periodRef.current] * 60 * 60 * 1000)
+          return [...prev.filter(x => new Date(x.reading_time) >= cutoff), r]
+        })
       })
       .subscribe()
 
@@ -311,7 +316,7 @@ export default function TentDashboardPage() {
               <div
                 className="h-full rounded-full transition-all"
                 style={{
-                  width: `${Math.min(100, Math.max(0, ((vpd - vpdTarget.min * 0.5) / (vpdTarget.max * 1.5 - vpdTarget.min * 0.5)) * 100))}%`,
+                  width: `${Math.min(100, Math.max(0, (vpd / 2.5) * 100))}%`,
                   background: vpdColor(vpd, vpdTarget),
                 }}
               />
@@ -446,7 +451,7 @@ export default function TentDashboardPage() {
           </ResponsiveContainer>
           {readings.length === 0 && (
             <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
-              No readings yet — {`readings state: ${readings.length}`}
+              No readings in this window yet
             </p>
           )}
         </div>

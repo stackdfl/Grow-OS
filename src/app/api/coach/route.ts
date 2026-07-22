@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
+import { formatCalibrationForPrompt, type CalibrationData } from '@/lib/calibration/engine'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -11,26 +12,38 @@ export async function POST(req: NextRequest) {
 
   const { messages } = await req.json() as { messages: Array<{ role: 'user' | 'assistant'; content: string }> }
 
-  // Fetch user's active grows for context
-  const { data: grows } = await supabase
-    .from('grows')
-    .select('name, status, medium_type, plant_count, clone_date, veg_start_date, flip_date, harvest_date, genetics(strain_name, breeder)')
-    .eq('user_id', user.id)
-    .not('status', 'in', '("complete","failed")')
-    .limit(5)
-
-  // Fetch upcoming calendar events
+  // Fetch user's active grows, upcoming events, and calibration in parallel
   const today = new Date().toISOString().split('T')[0]
   const in7 = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
-  const { data: events } = await supabase
-    .from('calendar_events')
-    .select('title, event_date, event_type, priority, grows(name)')
-    .eq('user_id', user.id)
-    .eq('completed', false)
-    .gte('event_date', today)
-    .lte('event_date', in7)
-    .order('event_date', { ascending: true })
-    .limit(10)
+
+  const [growsRes, eventsRes, calibrationRes] = await Promise.all([
+    supabase
+      .from('grows')
+      .select('name, status, medium_type, plant_count, clone_date, veg_start_date, flip_date, harvest_date, genetics(strain_name, breeder)')
+      .eq('user_id', user.id)
+      .not('status', 'in', '("complete","failed")')
+      .limit(5),
+
+    supabase
+      .from('calendar_events')
+      .select('title, event_date, event_type, priority, grows(name)')
+      .eq('user_id', user.id)
+      .eq('completed', false)
+      .gte('event_date', today)
+      .lte('event_date', in7)
+      .order('event_date', { ascending: true })
+      .limit(10),
+
+    supabase
+      .from('user_calibrations')
+      .select('calibration_data')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const grows  = growsRes.data
+  const events = eventsRes.data
+  const calibrationData = calibrationRes.data?.calibration_data as CalibrationData | null
 
   // Build system prompt with grow context
   const growContext = grows && grows.length > 0
@@ -56,6 +69,10 @@ export async function POST(req: NextRequest) {
       }).join('\n')}`
     : ''
 
+  const calibrationContext = calibrationData
+    ? `\n\n${formatCalibrationForPrompt(calibrationData)}`
+    : ''
+
   const systemPrompt = `You are Grow OS's AI Grow Coach — a knowledgeable, practical cannabis cultivation advisor. You help indoor growers improve their results through evidence-based advice.
 
 Your expertise covers:
@@ -72,8 +89,9 @@ Guidelines:
 - Be direct and specific — growers want actionable answers
 - Reference actual numbers (VPD ranges, EC targets, PPFD values, temps)
 - Acknowledge when something depends on the specific setup
+- Use the grower's calibration data to personalize advice when relevant — if you know their tent runs hot or their pH drifts, factor that in without them having to explain it
 - Flag potential issues proactively if context suggests a problem
-- Keep responses concise unless depth is clearly needed${growContext}${eventContext}`
+- Keep responses concise unless depth is clearly needed${growContext}${eventContext}${calibrationContext}`
 
   const stream = await anthropic.messages.stream({
     model: 'claude-haiku-4-5-20251001',

@@ -22,10 +22,15 @@ export default function GrowHarvestPage() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
 
+  const [totalSpend, setTotalSpend]       = useState(0)
+
   // Form state
   const [harvestDate, setHarvestDate]     = useState('')
   const [wetWeight, setWetWeight]         = useState('')
   const [dryWeight, setDryWeight]         = useState('')
+  const [trimWeight, setTrimWeight]       = useState('')
+  const [whatWorked, setWhatWorked]       = useState('')
+  const [whatToChange, setWhatToChange]   = useState('')
   const [cureStart, setCureStart]         = useState('')
   const [cureEnd, setCureEnd]             = useState('')
   const [thc, setThc]                     = useState('')
@@ -39,18 +44,23 @@ export default function GrowHarvestPage() {
   useEffect(() => { load() }, [growId])
 
   async function load() {
-    const [growRes, reportRes] = await Promise.all([
+    const [growRes, reportRes, expRes] = await Promise.all([
       supabase.from('grows').select('*').eq('id', growId).single(),
       supabase.from('harvest_reports').select('*').eq('grow_id', growId).maybeSingle(),
+      supabase.from('grow_expenses').select('amount_usd').eq('grow_id', growId),
     ])
     const g = growRes.data as Grow | null
     const r = reportRes.data as HarvestReport | null
     setGrow(g)
     setReport(r)
+    setTotalSpend(((expRes.data ?? []) as { amount_usd: number }[]).reduce((s, e) => s + Number(e.amount_usd), 0))
     if (r) {
       setHarvestDate(r.harvest_date ?? '')
       setWetWeight(r.wet_weight_g?.toString() ?? '')
       setDryWeight(r.dry_weight_g?.toString() ?? '')
+      setTrimWeight(r.trim_weight_g?.toString() ?? '')
+      setWhatWorked(r.what_worked ?? '')
+      setWhatToChange(r.what_to_change ?? '')
       setCureStart(r.cure_start_date ?? '')
       setCureEnd(r.cure_end_date ?? '')
       setThc(r.thc_percentage?.toString() ?? '')
@@ -80,6 +90,9 @@ export default function GrowHarvestPage() {
       harvest_date:       harvestDate || null,
       wet_weight_g:       wetWeight   ? parseFloat(wetWeight)   : null,
       dry_weight_g:       dryWeight   ? parseFloat(dryWeight)   : null,
+      trim_weight_g:      trimWeight  ? parseFloat(trimWeight)  : null,
+      what_worked:        whatWorked.trim()    || null,
+      what_to_change:     whatToChange.trim()  || null,
       cure_start_date:    cureStart   || null,
       cure_end_date:      cureEnd     || null,
       thc_percentage:     thc         ? parseFloat(thc)         : null,
@@ -110,6 +123,7 @@ export default function GrowHarvestPage() {
     if (data) {
       setReport(data)
       setEditing(false)
+      fetch('/api/calibration/compute', { method: 'POST' }).catch(() => {})
     }
     setSaving(false)
   }
@@ -117,6 +131,10 @@ export default function GrowHarvestPage() {
   const yieldPerPlant = grow && report?.dry_weight_g && grow.plant_count
     ? (report.dry_weight_g / 28.35 / grow.plant_count).toFixed(1)
     : null
+
+  const dryOz = report?.dry_weight_g ? report.dry_weight_g / 28.35 : null
+  const costPerOz = dryOz && dryOz > 0 && totalSpend > 0 ? totalSpend / dryOz : null
+  const costPerGram = report?.dry_weight_g && report.dry_weight_g > 0 && totalSpend > 0 ? totalSpend / report.dry_weight_g : null
 
   return (
     <div className="px-4 md:px-6 py-5 max-w-2xl mx-auto">
@@ -181,6 +199,49 @@ export default function GrowHarvestPage() {
             </div>
           )}
 
+          {/* Economics */}
+          {totalSpend > 0 && (
+            <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Economics</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Total spend</p>
+                  <p className="text-lg font-bold font-mono" style={{ color: 'var(--text)' }}>${totalSpend.toFixed(0)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Cost / oz</p>
+                  <p className="text-lg font-bold font-mono" style={{ color: costPerOz ? 'var(--accent)' : 'var(--text-muted)' }}>
+                    {costPerOz ? `$${costPerOz.toFixed(2)}` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Cost / gram</p>
+                  <p className="text-lg font-bold font-mono" style={{ color: 'var(--text)' }}>
+                    {costPerGram ? `$${costPerGram.toFixed(2)}` : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reflection */}
+          {(report.what_worked || report.what_to_change) && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {report.what_worked && (
+                <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'rgba(82,183,136,0.3)' }}>
+                  <p className="text-xs mb-1 font-medium" style={{ color: 'var(--accent)' }}>✓ What worked</p>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{report.what_worked}</p>
+                </div>
+              )}
+              {report.what_to_change && (
+                <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'rgba(244,162,97,0.3)' }}>
+                  <p className="text-xs mb-1 font-medium" style={{ color: 'var(--warning)' }}>↻ What I'd change</p>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{report.what_to_change}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {report.aroma_notes && (
             <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Aroma</p>
@@ -237,6 +298,12 @@ export default function GrowHarvestPage() {
             </div>
           </div>
 
+          <div className="space-y-1">
+            <Label className="text-xs" style={{ color: 'var(--text-muted)' }}>Trim / Larf Weight (g)</Label>
+            <Input type="number" placeholder="20" value={trimWeight} onChange={e => setTrimWeight(e.target.value)}
+              className="font-mono w-40" style={{ background: 'var(--surface-raised)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs" style={{ color: 'var(--text-muted)' }}>THC %</Label>
@@ -291,6 +358,23 @@ export default function GrowHarvestPage() {
                   {v ? 'Yes' : 'No'}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs" style={{ color: 'var(--accent)' }}>✓ What worked</Label>
+              <textarea rows={3} placeholder="Dialed VPD, the topping at day 21, this pheno…" value={whatWorked}
+                onChange={e => setWhatWorked(e.target.value)}
+                className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs" style={{ color: 'var(--warning)' }}>↻ What I'd change</Label>
+              <textarea rows={3} placeholder="Less N in late veg, flip a week earlier…" value={whatToChange}
+                onChange={e => setWhatToChange(e.target.value)}
+                className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)' }} />
             </div>
           </div>
 

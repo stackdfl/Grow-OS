@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDistanceToNow, differenceInDays, parseISO, addWeeks, isBefore, isAfter, startOfDay } from 'date-fns'
 import { Sprout, Plus, Droplets, AlertTriangle, CheckSquare, ChevronRight, Zap, Download, Cpu, Circle } from 'lucide-react'
+import { GettingStarted } from '@/components/dashboard/getting-started'
 import type { Grow, CalendarEvent, WateringLog, Recipe, Tent } from '@/types/database'
 
 const STAGE_COLORS: Record<string, string> = {
@@ -168,6 +169,9 @@ export default async function DashboardPage() {
           </button>
         </Link>
       </div>
+
+      {/* First-run getting started */}
+      <GettingStarted />
 
       {/* Tents widget */}
       {tents.length > 0 && (

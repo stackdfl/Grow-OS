@@ -7,12 +7,15 @@ import { createClient } from '@/lib/supabase/client'
 import { format, parseISO } from 'date-fns'
 import { ChevronLeft, BookOpen, Plus, X, Droplets, Zap, Scissors } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PhotoUploader } from '@/components/grows/photo-uploader'
+import { PhotoGrid } from '@/components/grows/photo-grid'
 import type { JournalEntry, Grow } from '@/types/database'
 
 export default function GrowJournalPage() {
   const { id: growId } = useParams<{ id: string }>()
   const supabase = createClient()
 
+  const [userId, setUserId]   = useState('')
   const [grow, setGrow]       = useState<Pick<Grow, 'id' | 'name'> | null>(null)
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,6 +24,7 @@ export default function GrowJournalPage() {
   const [adding, setAdding]     = useState(false)
   const [date, setDate]         = useState(format(new Date(), 'yyyy-MM-dd'))
   const [notes, setNotes]       = useState('')
+  const [photos, setPhotos]     = useState<string[]>([])
   const [watered, setWatered]   = useState(false)
   const [fed, setFed]           = useState(false)
   const [trained, setTrained]   = useState(false)
@@ -29,18 +33,25 @@ export default function GrowJournalPage() {
   useEffect(() => { load() }, [growId])
 
   async function load() {
-    const [growRes, entRes] = await Promise.all([
+    const [{ data: { user } }, growRes, entRes] = await Promise.all([
+      supabase.auth.getUser(),
       supabase.from('grows').select('id, name').eq('id', growId).single(),
       supabase.from('journal_entries').select('*').eq('grow_id', growId)
         .order('entry_date', { ascending: false }).limit(200),
     ])
+    setUserId(user?.id ?? '')
     setGrow(growRes.data as Pick<Grow, 'id' | 'name'> | null)
     setEntries((entRes.data ?? []) as JournalEntry[])
     setLoading(false)
   }
 
+  function resetForm() {
+    setNotes(''); setPhotos([]); setWatered(false); setFed(false); setTrained(false)
+    setDate(format(new Date(), 'yyyy-MM-dd'))
+  }
+
   async function submit() {
-    if (!notes.trim()) return
+    if (!notes.trim() && photos.length === 0) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
@@ -53,7 +64,7 @@ export default function GrowJournalPage() {
         entry_date:      date,
         raw_notes:       notes.trim(),
         structured_data: {},
-        photos:          [],
+        photos,
         watering_logged: watered,
         feeding_logged:  fed,
         training_logged: trained,
@@ -63,10 +74,7 @@ export default function GrowJournalPage() {
 
     if (data) {
       setEntries(p => [data as JournalEntry, ...p])
-      setNotes('')
-      setWatered(false)
-      setFed(false)
-      setTrained(false)
+      resetForm()
       setAdding(false)
     }
     setSaving(false)
@@ -95,7 +103,9 @@ export default function GrowJournalPage() {
         <div className="rounded-xl border p-4 mb-5 space-y-3" style={{ borderColor: 'var(--accent)', background: 'var(--surface)' }}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>New Entry</span>
-            <button onClick={() => setAdding(false)}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
+            <button onClick={() => { resetForm(); setAdding(false) }}>
+              <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -105,10 +115,18 @@ export default function GrowJournalPage() {
               style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)' }} />
           </div>
 
-          <textarea rows={5} placeholder="What happened today? Observations, concerns, actions taken…"
+          <textarea rows={4} placeholder="What happened today? Observations, concerns, actions taken…"
             value={notes} onChange={e => setNotes(e.target.value)} autoFocus
             className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none"
             style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+
+          {userId && (
+            <PhotoUploader
+              userId={userId}
+              growId={growId}
+              onUploaded={setPhotos}
+            />
+          )}
 
           <div className="flex gap-2 flex-wrap">
             {[
@@ -129,8 +147,11 @@ export default function GrowJournalPage() {
           </div>
 
           <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setAdding(false)} style={{ color: 'var(--text-muted)' }}>Cancel</Button>
-            <Button onClick={submit} disabled={saving || !notes.trim()} style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
+            <Button variant="ghost" onClick={() => { resetForm(); setAdding(false) }} style={{ color: 'var(--text-muted)' }}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={saving || (!notes.trim() && photos.length === 0)}
+              style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
               {saving ? 'Saving…' : 'Save Entry'}
             </Button>
           </div>
@@ -181,6 +202,9 @@ export default function GrowJournalPage() {
               <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
                 {entry.raw_notes}
               </p>
+            )}
+            {entry.photos?.length > 0 && (
+              <PhotoGrid urls={entry.photos} />
             )}
           </div>
         ))}

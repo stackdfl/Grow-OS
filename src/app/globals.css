@@ -87,6 +87,18 @@
   }
 }
 
+/* Pipeline harvest pulse */
+@keyframes pipeline-pulse {
+  0%   { opacity: 0.9; stroke-width: 2; }
+  50%  { opacity: 0.25; stroke-width: 4; }
+  100% { opacity: 0.9; stroke-width: 2; }
+}
+.pipeline-pulse {
+  animation: pipeline-pulse 1.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

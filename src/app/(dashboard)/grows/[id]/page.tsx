@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { differenceInDays, parseISO, startOfDay, format, addDays } from 'date-fns'
 import {
   ChevronLeft, Droplets, Thermometer, Wind, CalendarDays,
-  Sprout, FlaskConical, BookOpen, Zap, Leaf, GlassWater, Pencil
+  Sprout, FlaskConical, BookOpen, Zap, Leaf, GlassWater, Pencil, DollarSign, ClipboardList, Images
 } from 'lucide-react'
 import type { Grow, Genetics, EquipmentProfile, CalendarEvent, WateringLog, EnvReading } from '@/types/database'
 import { SyncRecipeButton } from '@/components/grows/sync-recipe-button'
+import { GrowActions } from '@/components/grows/grow-actions'
 
 const STAGE_LABELS: Record<string, string> = {
   seedling: 'Seedling', clone: 'Clone', veg: 'Veg', flower: 'Flower',
@@ -30,13 +31,20 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
 
   const { data: growRaw } = await supabase
     .from('grows')
-    .select('*, genetics(*), equipment_profile:equipment_profiles(*)')
+    .select('*, genetics(*)')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
   if (!growRaw) notFound()
-  const grow = growRaw as Grow & { genetics: Genetics | null; equipment_profile: EquipmentProfile | null }
+
+  const { data: equipmentProfileRaw } = await supabase
+    .from('equipment_profiles')
+    .select('*')
+    .eq('id', (growRaw as Grow & { equipment_profile_id: string | null }).equipment_profile_id ?? '')
+    .maybeSingle()
+
+  const grow = { ...growRaw, equipment_profile: equipmentProfileRaw ?? null } as Grow & { genetics: Genetics | null; equipment_profile: EquipmentProfile | null }
 
   const today = startOfDay(new Date())
   const todayStr = format(today, 'yyyy-MM-dd')
@@ -135,6 +143,14 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
           )}
         </div>
       </div>
+
+      {/* Log Today CTA */}
+      <Link href={`/grows/${id}/log`}>
+        <div className="rounded-xl p-3.5 flex items-center justify-center gap-2 font-semibold text-sm transition-transform hover:scale-[1.01]"
+          style={{ background: 'var(--accent)', color: '#0a0f0d' }}>
+          <ClipboardList className="w-4.5 h-4.5" /> Log Today
+        </div>
+      </Link>
 
       {/* Stage timeline */}
       <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
@@ -271,14 +287,16 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
       )}
 
       {/* Nav tabs */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
         {[
           { href: `/grows/${id}/journal`, icon: BookOpen, label: 'Journal' },
+          { href: `/grows/${id}/story`, icon: Images, label: 'Story' },
           { href: `/grows/${id}/calendar`, icon: CalendarDays, label: 'Calendar' },
           { href: `/grows/${id}/watering`, icon: GlassWater, label: 'Watering' },
           { href: `/grows/${id}/feeding`, icon: Droplets, label: 'Feeding' },
           { href: `/grows/${id}/environment`, icon: Thermometer, label: 'Env' },
           { href: `/grows/${id}/harvest`, icon: FlaskConical, label: 'Harvest' },
+          { href: `/grows/${id}/costs`, icon: DollarSign, label: 'Costs' },
         ].map(({ href, icon: Icon, label }) => (
           <Link key={href} href={href}>
             <div
@@ -291,6 +309,9 @@ export default async function GrowDetailPage({ params }: { params: Promise<{ id:
           </Link>
         ))}
       </div>
+
+      {/* Recreate / capture */}
+      <GrowActions growId={id} />
 
       {/* Notes */}
       {grow.notes && (

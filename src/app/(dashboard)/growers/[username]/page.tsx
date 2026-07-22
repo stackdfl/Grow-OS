@@ -32,6 +32,7 @@ export default async function GrowerProfilePage({
     { count: followerCount },
     { count: followingCount },
     { data: followRow },
+    { data: sharesRaw },
   ] = await Promise.all([
     supabase.from('recipes')
       .select('id, title, genetics, medium, difficulty, rating_avg, rating_count, downloads, veg_weeks, flower_weeks, tags, created_at')
@@ -45,9 +46,15 @@ export default async function GrowerProfilePage({
       .eq('follower_id', user.id)
       .eq('following_id', profile.id)
       .maybeSingle(),
+    supabase.from('community_shares')
+      .select('id, title, cover_photo, upvotes, snapshot')
+      .eq('author_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(12),
   ])
 
   const recipes = (recipesRaw ?? []) as Recipe[]
+  const shares = (sharesRaw ?? []) as unknown as { id: string; title: string; cover_photo: string | null; upvotes: number; snapshot: { yield?: { dry_oz?: number | null } | null } | null }[]
   const isFollowing = !!followRow
   const followers = followerCount ?? 0
   const following = followingCount ?? 0
@@ -147,6 +154,34 @@ export default async function GrowerProfilePage({
           ))}
         </div>
       </div>
+
+      {/* Showcases */}
+      {shares.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold mb-3 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            Grow Showcases
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {shares.map(s => (
+              <Link key={s.id} href={`/canopy/${s.id}`}>
+                <div className="rounded-xl border overflow-hidden transition-transform hover:scale-[1.02]" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+                  <div className="h-24 relative" style={{ background: 'var(--surface-raised)' }}>
+                    {s.cover_photo ? <img src={s.cover_photo} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center"><Sprout className="w-5 h-5" style={{ color: 'var(--text-muted)' }} /></div>}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>{s.title}</p>
+                    <div className="flex items-center justify-between mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      {s.snapshot?.yield?.dry_oz != null ? <span>{s.snapshot.yield.dry_oz}oz</span> : <span />}
+                      <span>▲ {s.upvotes}</span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recipes */}
       <div>

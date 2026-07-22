@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Save, User } from 'lucide-react'
+import { Save, User, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Profile } from '@/types/database'
 
@@ -17,11 +17,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const [displayName, setDisplayName] = useState('')
-  const [username, setUsername]       = useState('')
-  const [bio, setBio]                 = useState('')
-  const [location, setLocation]       = useState('')
-  const [experience, setExperience]   = useState<string>('')
+  const [displayName, setDisplayName]       = useState('')
+  const [username, setUsername]             = useState('')
+  const [bio, setBio]                       = useState('')
+  const [location, setLocation]             = useState('')
+  const [experience, setExperience]         = useState<string>('')
+  const [emailDigest, setEmailDigest]       = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -36,6 +37,7 @@ export default function SettingsPage() {
         setBio(p.bio ?? '')
         setLocation(p.location ?? '')
         setExperience(p.experience_level ?? '')
+        setEmailDigest(p.email_digest_enabled ?? false)
       }
       setLoading(false)
     }
@@ -53,6 +55,7 @@ export default function SettingsPage() {
         bio: bio.trim() || null,
         location: location.trim() || null,
         experience_level: experience || null,
+        email_digest_enabled: emailDigest,
       } as never)
       .eq('id', profile.id)
 
@@ -193,6 +196,37 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div
+        className="rounded-xl border p-5 space-y-4"
+        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <Bell className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Notifications</span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Morning digest email</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Daily email with today's tasks and any overdue items (8am)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEmailDigest(!emailDigest)}
+            className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+            style={{ background: emailDigest ? 'var(--accent)' : 'var(--border)' }}
+          >
+            <span
+              className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+              style={{ transform: emailDigest ? 'translateX(20px)' : 'translateX(0)' }}
+            />
+          </button>
         </div>
       </div>
 

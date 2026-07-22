@@ -8,6 +8,7 @@ export type CalendarEventType = 'water' | 'feed' | 'top_dress' | 'transplant' | 
 export type EventPriority = 'low' | 'medium' | 'high' | 'critical'
 export type EnvSource = 'manual' | 'ac_infinity' | 'aroya' | 'pulse' | 'grow_os'
 export type RecipeDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert'
+export type TentRole = 'veg' | 'flower' | 'both'
 
 // ============================================================
 // Profiles
@@ -21,6 +22,8 @@ export interface Profile {
   bio: string | null
   avatar_url: string | null
   equipment_profile: Record<string, unknown>
+  email_digest_enabled: boolean
+  onboarding_completed: boolean
   created_at: string
 }
 
@@ -48,6 +51,7 @@ export interface EquipmentProfile {
   medium_type: string | null
   pot_size_gal: number | null
   max_plants: number | null
+  role: TentRole
   notes: string | null
   is_default: boolean
   created_at: string
@@ -88,6 +92,7 @@ export interface Grow {
   name: string
   genetics_id: string | null
   equipment_profile_id: string | null
+  veg_tent_id: string | null
   status: GrowStatus
   medium_type: string | null
   medium_ingredients: MediumIngredient[]
@@ -452,6 +457,9 @@ export interface HarvestReport {
   harvest_date: string | null
   wet_weight_g: number | null
   dry_weight_g: number | null
+  trim_weight_g: number | null
+  what_worked: string | null
+  what_to_change: string | null
   cure_start_date: string | null
   cure_end_date: string | null
   thc_percentage: number | null

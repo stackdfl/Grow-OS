@@ -80,6 +80,7 @@ export default function GrowWateringPage() {
       setLogs(p => [data as WateringLog, ...p])
       setVolume(''); setPhIn(''); setEcIn(''); setRunoffPh(''); setRunoffEc('')
       setAdditives([]); setNotes(''); setAdding(false)
+      fetch('/api/calibration/compute', { method: 'POST' }).catch(() => {})
     }
     setSaving(false)
   }

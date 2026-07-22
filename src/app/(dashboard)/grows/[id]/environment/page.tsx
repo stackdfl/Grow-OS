@@ -85,6 +85,7 @@ export default function GrowEnvironmentPage() {
       setPh('')
       setEc('')
       setAdding(false)
+      fetch('/api/calibration/compute', { method: 'POST' }).catch(() => {})
     }
     setSaving(false)
   }
