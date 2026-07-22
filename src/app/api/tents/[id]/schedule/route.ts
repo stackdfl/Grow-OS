@@ -33,7 +33,7 @@ export async function PATCH(
 
   await supabase
     .from('tent_schedules')
-    .upsert({ tent_id: id, ...scheduleFields, updated_at: new Date().toISOString() })
+    .update({ ...scheduleFields, updated_at: new Date().toISOString() })
     .eq('tent_id', id)
 
   if (grow_id !== undefined) {
